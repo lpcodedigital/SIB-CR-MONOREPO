@@ -1,0 +1,79 @@
+services:
+  # --- DATABASE --- #
+  db:
+    image: sib-db-local:latest
+    container_name: sib-cr-database-prod
+    pull_policy: never
+    restart: always
+    environment:
+      POSTGRES_DB: ${DATASOURCE_DB_NAME}
+      POSTGRES_USER: ${DATASOURCE_USERNAME}
+      POSTGRES_PASSWORD: ${DATASOURCE_PASSWORD}
+    volumes:
+      - sib_db_data:/var/lib/postgresql/data
+    networks:
+      - sib-cr-network
+
+  # --- BACKEND --- #
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: sib-cr-backend-prod
+    restart: always
+    ports: 
+      - "8081:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PROFILES_ACTIVE:-prod}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DATASOURCE_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DATASOURCE_PASSWORD}
+      SPRING_MAIL_HOST: ${MAIL_HOST}
+      SPRING_MAIL_PORT: ${MAIL_PORT}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+    env_file: 
+    - .env.prod
+    depends_on:
+      - db
+    networks:
+      - sib-cr-network
+
+  # --- FRONTEND ADMIN REFINE--- #
+  admin:
+    build:
+      context: ./Frontend-Admin
+      dockerfile: Dockerfile
+      target: prod
+      args: 
+        VITE_API_URL: ${URL_BASE_API_BACKEND:-http://localhost:8081/api/v1}
+    container_name: sib_cr_frontend_admin_prod
+    restart: always
+    ports: 
+      - "3001:80"
+    depends_on:
+      - backend
+    networks:
+      - sib-cr-network
+
+  # --- FRONTEND PUBLIC VITE--- #
+  publico:
+    build: 
+      context: ./Frontend-Public
+      dockerfile: Dockerfile
+      target: prod
+    container_name: sib_cr_frontend_publico_prod
+    restart: always
+    ports: 
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - sib-cr-network
+
+networks:
+  sib-cr-network:
+    driver: bridge
+
+volumes:
+  sib_db_data:

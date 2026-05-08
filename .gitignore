@@ -1,0 +1,32 @@
+# --- IDEs & System ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# --- Environment Files (CRÍTICO) ---
+# Bloqueamos los archivos con valores reales
+.env.prod
+.env.staging
+.env.local
+.env
+# IMPORTANTE: NO ignoramos .env.template para que se suba como guía
+
+# --- Docker & Logs ---
+logs/
+*.log
+data/
+docker-compose.override.yml
+
+# --- Datos de Origen ---
+# Si pesado o contiene datos sensibles de la institución
+
+# --- Reglas para Submódulos ---
+# El código dentro de Backend/ y Frontend-*/ 
+# tiene su propio .gitignore. Aquí solo evitamos que el monorepo 
+# intente trackear basura si llegas a compilar algo desde la raíz.
+
+**/target/
+**/node_modules/
+**/dist/
+**/build/
