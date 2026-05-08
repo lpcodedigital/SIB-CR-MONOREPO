@@ -1,9 +1,9 @@
 [submodule "Backend"]
 	path = Backend
-	url = https://github.com/lpcodedigital/CimientosDelRenacimientoBackend.git
+	url = git@github.com-lpcode071294:lpcodedigital/CimientosDelRenacimientoBackend.git
 [submodule "Frontend-Admin"]
 	path = Frontend-Admin
-	url = https://github.com/lpcodedigital/CimientosDelRenacimientoFrontend-Admin.git
+	url = git@github.com-lpcode071294:lpcodedigital/CimientosDelRenacimientoFrontend-Admin.git
 [submodule "Frontend-Public"]
 	path = Frontend-Public
-	url = https://github.com/lpcodedigital/cimientos-del-renacimiento.git
+	url = git@github.com-lpcode071294:lpcodedigital/cimientos-del-renacimiento.git
