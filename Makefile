@@ -5,6 +5,8 @@
 # 🧱 Variables
 COMPOSE_PROD := docker-compose.prod.yml
 ENV_PROD     := .env.prod
+DOCKER_USER  := lpcodeadmin
+TAG          := latest
 
 # 🎨 Colores
 GREEN   := \033[0;32m
@@ -15,6 +17,13 @@ RESET   := \033[0m
 
 .DEFAULT_GOAL := help
 
+# Incluimos las variables del .env para que estén disponibles en los comandos
+# Esto permite usar $(URL_BASE_API_BACKEND) directamente
+ifneq ("$(wildcard $(ENV_PROD))","")
+    include $(ENV_PROD)
+    export $(shell sed 's/=.*//' $(ENV_PROD))
+endif
+
 # ==============================================
 # 🔧 COMANDOS PRINCIPALES
 # ==============================================
@@ -22,7 +31,7 @@ RESET   := \033[0m
 # 🚀 Despliegue Total en Producción
 prod:
 	@echo "$(BLUE)🏗️ Iniciando despliegue total de producción...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --build
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d
 	@echo "$(GREEN)✨ ¡Sistema levantado exitosamente!$(RESET)"
 	@echo "$(YELLOW)Admin: http://localhost:3001$(RESET)"
 	@echo "$(YELLOW)Público: http://localhost:3000$(RESET)"
@@ -73,6 +82,31 @@ clean-danger:
 # 🧪 Verificar estado de los contenedores
 status:
 	@docker compose -f $(COMPOSE_PROD) ps
+
+# ==============================================
+# 🏭 COMANDOS DE FÁBRICA (Solo en MacBook)
+# ==============================================
+
+# Construir y subir todas las imágenes
+build-and-push: build-backend build-admin build-public
+	@echo "$(GREEN)🚀 ¡Todas las imágenes han sido enviadas a Docker Hub!$(RESET)"
+
+build-backend:
+	@echo "$(BLUE)📦 Construyendo Backend...$(RESET)"
+	docker build -t $(DOCKER_USER)/sib-backend:$(TAG) ./Backend
+	docker push $(DOCKER_USER)/sib-backend:$(TAG)
+
+build-admin:
+	@echo "$(BLUE)📦 Construyendo Frontend Admin...$(RESET)"
+	docker build --target prod \
+		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
+		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG) ./Frontend-Admin
+	docker push $(DOCKER_USER)/sib-frontend-admin:$(TAG)
+
+build-public:
+	@echo "$(BLUE)📦 Construyendo Frontend Público...$(RESET)"
+	docker build --target prod -t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
+	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG)
 
 # ==============================================
 # 📘 AYUDA

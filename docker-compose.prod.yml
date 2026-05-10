@@ -1,9 +1,9 @@
 services:
   # --- DATABASE --- #
   db:
-    image: sib-db-local:latest
+    image: postgres:alpine
     container_name: sib-cr-database-prod
-    pull_policy: never
+    #pull_policy: never
     restart: always
     environment:
       POSTGRES_DB: ${DATASOURCE_DB_NAME}
@@ -16,9 +16,10 @@ services:
 
   # --- BACKEND --- #
   backend:
-    build:
-      context: ./Backend
-      dockerfile: Dockerfile
+    #build:
+    #  context: ./Backend
+    #  dockerfile: Dockerfile
+    image: lpcodeadmin/sib-backend:latest
     container_name: sib-cr-backend-prod
     restart: always
     ports: 
@@ -41,12 +42,13 @@ services:
 
   # --- FRONTEND ADMIN REFINE--- #
   admin:
-    build:
-      context: ./Frontend-Admin
-      dockerfile: Dockerfile
-      target: prod
-      args: 
-        VITE_API_URL: ${URL_BASE_API_BACKEND:-http://localhost:8081/api/v1}
+    #build:
+    #  context: ./Frontend-Admin
+    #  dockerfile: Dockerfile
+    #  target: prod
+    #  args: 
+    #    VITE_API_URL: ${URL_BASE_API_BACKEND:-http://localhost:8081/api/v1}
+    image: lpcodeadmin/sib-frontend-admin:latest
     container_name: sib_cr_frontend_admin_prod
     restart: always
     ports: 
@@ -58,10 +60,11 @@ services:
 
   # --- FRONTEND PUBLIC VITE--- #
   publico:
-    build: 
-      context: ./Frontend-Public
-      dockerfile: Dockerfile
-      target: prod
+    #build: 
+    #  context: ./Frontend-Public
+    #  dockerfile: Dockerfile
+    #  target: prod
+    image: lpcodeadmin/sib-frontend-publico:latest
     container_name: sib_cr_frontend_publico_prod
     restart: always
     ports: 
