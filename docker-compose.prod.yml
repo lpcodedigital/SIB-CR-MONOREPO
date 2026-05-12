@@ -33,6 +33,7 @@ services:
       SPRING_MAIL_PORT: ${MAIL_PORT}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     env_file: 
     - .env.prod
     depends_on:
