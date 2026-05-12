@@ -3,14 +3,14 @@ services:
   db:
     image: postgres:alpine
     container_name: sib-cr-database-prod
-    #pull_policy: never
+    hostname: db
     restart: always
     environment:
       POSTGRES_DB: ${DATASOURCE_DB_NAME}
       POSTGRES_USER: ${DATASOURCE_USERNAME}
       POSTGRES_PASSWORD: ${DATASOURCE_PASSWORD}
     volumes:
-      - sib_db_data:/var/lib/postgresql/data
+      - sib_db_data:/var/lib/postgresql
     networks:
       - sib-cr-network
 
