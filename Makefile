@@ -258,6 +258,27 @@ volume-ls:
 volume-inspect:
 	@docker volume inspect sib_db_data
 
+import-obras:
+	@echo "$(BLUE)📂 Usando archivo: $(OBRAS_CSV)$(RESET)"
+	@echo "$(BLUE)📤 Copiando CSV al contenedor...$(RESET)"
+	docker cp ./$(OBRAS_CSV) sib-cr-database-prod:/tmp/obras_final.csv
+	
+	@echo "$(BLUE)🚀 Iniciando importación SQL...$(RESET)"
+	docker exec -it sib-cr-database-prod psql -U $(DATASOURCE_USERNAME) -d $(DATASOURCE_DB_NAME) -c "\
+		SET datestyle TO 'ISO, DMY'; \
+		TRUNCATE public.obras RESTART IDENTITY CASCADE; \
+		COPY public.obras (agency, description, municipality, name, investment, status, latitude, longitude, created_by_id, updated_by_id, created_at, updated_at, deleted, progress) \
+		FROM '/tmp/obras_final.csv' WITH (FORMAT csv, HEADER true, DELIMITER ',', ENCODING 'UTF8'); \
+		UPDATE obras SET created_by_id = (SELECT id_user FROM users ORDER BY id_user ASC LIMIT 1), \
+		                 updated_by_id = (SELECT id_user FROM users ORDER BY id_user ASC LIMIT 1); \
+		SELECT setval(pg_get_serial_sequence('obras', 'id'), coalesce(max(id), 1)) FROM obras;"
+	
+	@echo "$(GREEN)✅ Proceso completado.$(RESET)"
+
+clean-temp:
+	@echo "$(BLUE)🧹 Limpiando archivos temporales...$(RESET)"
+		docker exec -it sib-cr-database-prod rm /tmp/obras_final.csv
+
 # ==============================================
 # 🌐 REDES Y DIAGNÓSTICO
 # ==============================================
@@ -329,8 +350,10 @@ build-admin:
 
 # Construir y subir Frontend Público
 build-public:
-	@echo "$(BLUE)📦 Construyendo Frontend Público...$(RESET)"
-	docker build --target prod -t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
+	@echo "$(BLUE)📦 Construyendo Frontend Público con API: $(URL_BASE_API_BACKEND)...$(RESET)"
+	docker build --target prod \
+		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
+		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
 	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG)
 
 # ==============================================
@@ -386,6 +409,8 @@ help:
 	@echo "  make db-dump2           → Backup PostgreSQL alternativo"
 	@echo "  make volume-ls          → Listar volúmenes"
 	@echo "  make volume-inspect     → Inspeccionar volumen DB"
+	@echo "  make import-obras       → Importar obras desde CSV"
+	@echo "  make clean-temp         → Limpiar archivos temporales"
 	@echo ""
 
 	@echo "$(YELLOW)🌐 REDES Y DIAGNÓSTICO$(RESET)"
