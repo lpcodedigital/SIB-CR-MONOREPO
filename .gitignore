@@ -30,3 +30,7 @@ docker-compose.override.yml
 **/node_modules/
 **/dist/
 **/build/
+
+# --- Otros ---
+letsencrypt/
+proxy_data/

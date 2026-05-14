@@ -1,4 +1,19 @@
 services:
+  # --- REVERSE PROXY (Nginx Proxy Manager) ---
+  proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: sib-cr-proxy-prod
+    restart: always
+    ports:
+      - "80:80"   # HTTP público
+      - "443:443" # HTTPS público
+      - "81:81"   # Panel de administración (puedes protegerlo con firewall después)
+    volumes:
+      - ./proxy_data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    networks:
+      - sib-cr-network
+
   # --- DATABASE --- #
   db:
     image: postgres:alpine
@@ -22,8 +37,8 @@ services:
     image: lpcodeadmin/sib-backend:latest
     container_name: sib-cr-backend-prod
     restart: always
-    ports: 
-      - "8081:8080"
+    #ports:
+      #- "8081:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${PROFILES_ACTIVE:-prod}
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DATASOURCE_DB_NAME}
@@ -34,7 +49,7 @@ services:
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
-    env_file: 
+    env_file:
     - .env.prod
     depends_on:
       - db
@@ -47,13 +62,13 @@ services:
     #  context: ./Frontend-Admin
     #  dockerfile: Dockerfile
     #  target: prod
-    #  args: 
+    #  args:
     #    VITE_API_URL: ${URL_BASE_API_BACKEND:-http://localhost:8081/api/v1}
     image: lpcodeadmin/sib-frontend-admin:latest
     container_name: sib_cr_frontend_admin_prod
     restart: always
-    ports: 
-      - "3001:80"
+    #ports:
+      #- "3001:80"
     depends_on:
       - backend
     networks:
@@ -61,15 +76,15 @@ services:
 
   # --- FRONTEND PUBLIC VITE--- #
   publico:
-    #build: 
+    #build:
     #  context: ./Frontend-Public
     #  dockerfile: Dockerfile
     #  target: prod
     image: lpcodeadmin/sib-frontend-publico:latest
     container_name: sib_cr_frontend_publico_prod
     restart: always
-    ports: 
-      - "3000:80"
+    #ports:
+      #- "3000:80"
     depends_on:
       - backend
     networks:
@@ -81,3 +96,4 @@ networks:
 
 volumes:
   sib_db_data:
+  proxy_data:
