@@ -7,7 +7,7 @@ services:
     ports:
       - "80:80"   # HTTP público
       - "443:443" # HTTPS público
-      - "81:81"   # Panel de administración (puedes protegerlo con firewall después)
+      - "127.0.0.1:81"   # Panel de administración (Solo escucha peticiones internas tunel SSH)
     volumes:
       - ./proxy_data:/data
       - ./letsencrypt:/etc/letsencrypt
