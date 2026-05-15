@@ -357,6 +357,24 @@ build-public:
 	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG)
 
 # ==============================================
+# 🖥 SSH CONEXIÓN REMOTA (VPS)
+# ==============================================
+
+ssh-vps:
+	@echo "🖥️ Conectando a la terminal del VPS..."
+	ssh $(VPS_USER)@$(VPS_IP)
+
+# ==============================================
+# 🔗 SSH TUNNEL PARA ACCESO AL PROXY
+# ==============================================
+
+proxy-tunnel:
+	@echo "🚀 Abriendo túnel seguro hacia el panel de administración..."
+	@echo "🔗 Una vez abierto, accede en tu PC a: http://localhost:8080"
+	@echo "⚠️ No cierres esta terminal mientras uses el panel."
+	ssh -L 8080:localhost:81 $(VPS_USER)@$(VPS_IP)
+
+# ==============================================
 # 📘 HELP
 # ==============================================
 
@@ -442,6 +460,11 @@ help:
 	@echo "  make build-backend-local      → Build Backend Localmente"
 	@echo "  make build-admin-local        → Build Frontend Admin Localmente"
 	@echo "  make build-public-local       → Build Frontend Público Localmente"
+	@echo ""
+
+	@echo "$(YELLOW)🌐 SSH CONEXIÓN REMOTA(VPS) $(RESET)"
+	@echo "  make ssh-vps            → Conexión SSH a la terminal del VPS"
+	@echo "  make proxy-tunnel        → Abrir túnel SSH para panel de administración del proxy (Acceso en http://localhost:8080)"
 	@echo ""
 
 	@echo "-----------------------------------------------"
