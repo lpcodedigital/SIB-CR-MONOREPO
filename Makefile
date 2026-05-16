@@ -305,6 +305,21 @@ ping-backend:
 ping-public:
 	@docker exec -it $(PUBLIC_CONTAINER) ping backend
 
+# Obtiene la IP del Gateway de la red del proyecto en el VPS
+docker-gateway:
+	@echo "🔍 Obteniendo el Gateway de la red sib-cr-network en el VPS..."
+	@ssh $(VPS_USER)@$(VPS_IP) "docker network inspect sib-cr-monorepo_sib-cr-network | grep Gateway"
+
+# Obtiene la IP interna exacta de cualquier contenedor pasando el nombre
+# Ejemplo de uso en terminal: make docker-ip NAME=sib-cr-database-prod
+docker-ip:
+	@if [ -z "$(NAME)" ]; then \
+		echo "⚠️ Error: Debes especificar el nombre del contenedor. Ejemplo: make docker-ip NAME=sib-cr-database-prod"; \
+	else \
+		echo "📦 Buscando IP interna para el contenedor: $(NAME)..."; \
+		ssh $(VPS_USER)@$(VPS_IP) "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(NAME)"; \
+	fi
+
 # ==============================================
 # 🏭 CONSTRUCCIÓN (Solo construir para pruebas locales) (CI/CD Local)
 # ==============================================
@@ -375,6 +390,18 @@ proxy-tunnel:
 	ssh -L 8080:localhost:81 $(VPS_USER)@$(VPS_IP)
 
 # ==============================================
+# 🔗 SSH TUNNELS INDIVIDUALES
+# ==============================================
+
+# Abre exclusivamente el túnel para la Base de Datos (PostgreSQL)
+# Cambiar la IP interna (172.18.0.5) si llega a cambiar en el futuro
+db-tunnel:
+	@echo "🗄️ Abriendo túnel seguro hacia PostgreSQL en el VPS..."
+	@echo "🔗 Configura tu pgAdmin4 local con -> Host: host.docker.internal | Port: 5433"
+	@echo "⚠️ No cierres esta terminal mientras uses la base de datos."
+	ssh -L 5433:172.18.0.5:5432 $(VPS_USER)@$(VPS_IP)
+
+# ==============================================
 # 📘 HELP
 # ==============================================
 
@@ -437,6 +464,8 @@ help:
 	@echo "  make ping-db            → Backend → PostgreSQL"
 	@echo "  make ping-backend       → Admin → Backend"
 	@echo "  make ping-public        → Público → Backend"
+	@echo "  make docker-gateway     → Obtener Gateway de la red en el VPS"
+	@echo "  make docker-ip          → Obtener IP interna de un contenedor (Ej: make docker-ip NAME=sib-cr-database-prod)"
 	@echo ""
 
 	@echo "$(YELLOW)🧹 LIMPIEZA Y MANTENIMIENTO$(RESET)"
@@ -465,6 +494,7 @@ help:
 	@echo "$(YELLOW)🌐 SSH CONEXIÓN REMOTA(VPS) $(RESET)"
 	@echo "  make ssh-vps            → Conexión SSH a la terminal del VPS"
 	@echo "  make proxy-tunnel        → Abrir túnel SSH para panel de administración del proxy (Acceso en http://localhost:8080)"
+	@echo "  make db-tunnel           → Abrir túnel SSH para PostgreSQL (Acceso en http://localhost:5433)"
 	@echo ""
 
 	@echo "-----------------------------------------------"
