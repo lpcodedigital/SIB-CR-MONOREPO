@@ -338,6 +338,7 @@ build-admin-local:
 build-public-local:
 	docker build --target prod \
 		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
+		--build-arg VITE_GOOGLE_MAPS_API_KEY=$(VITE_GOOGLE_MAPS_API_KEY) \
 		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
 
 
@@ -368,6 +369,7 @@ build-public:
 	@echo "$(BLUE)📦 Construyendo Frontend Público con API: $(URL_BASE_API_BACKEND)...$(RESET)"
 	docker build --target prod \
 		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
+		--build-arg VITE_GOOGLE_MAPS_API_KEY=$(VITE_GOOGLE_MAPS_API_KEY) \
 		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
 	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG)
 
