@@ -7,6 +7,7 @@
 # --- Environment Files (CRÍTICO) ---
 # Bloqueamos los archivos con valores reales
 .env.prod
+.env.dev
 .env.staging
 .env.local
 .env

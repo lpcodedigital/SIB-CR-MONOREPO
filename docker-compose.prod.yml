@@ -12,7 +12,8 @@ services:
       - ./proxy_data:/data
       - ./letsencrypt:/etc/letsencrypt
     networks:
-      - sib-cr-network
+      - sib-cr-network # <-- Le damos acceso a la red principal
+      - sib-cr-monorepo_sib-cr-network-dev  # <-- Le damos acceso a la red de DEV
 
   # --- DATABASE --- #
   db:
@@ -31,14 +32,9 @@ services:
 
   # --- BACKEND --- #
   backend:
-    #build:
-    #  context: ./Backend
-    #  dockerfile: Dockerfile
-    image: lpcodeadmin/sib-backend:latest
+    image: lpcodeadmin/sib-backend:latest # <-- Tag :latest para producción
     container_name: sib-cr-backend-prod
     restart: always
-    #ports:
-      #- "8081:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${PROFILES_ACTIVE:-prod}
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DATASOURCE_DB_NAME}
@@ -58,17 +54,9 @@ services:
 
   # --- FRONTEND ADMIN REFINE--- #
   admin:
-    #build:
-    #  context: ./Frontend-Admin
-    #  dockerfile: Dockerfile
-    #  target: prod
-    #  args:
-    #    VITE_API_URL: ${URL_BASE_API_BACKEND:-http://localhost:8081/api/v1}
-    image: lpcodeadmin/sib-frontend-admin:latest
+    image: lpcodeadmin/sib-frontend-admin:latest # <-- Tag :latest para producción
     container_name: sib_cr_frontend_admin_prod
     restart: always
-    #ports:
-      #- "3001:80"
     depends_on:
       - backend
     networks:
@@ -76,15 +64,9 @@ services:
 
   # --- FRONTEND PUBLIC VITE--- #
   publico:
-    #build:
-    #  context: ./Frontend-Public
-    #  dockerfile: Dockerfile
-    #  target: prod
-    image: lpcodeadmin/sib-frontend-publico:latest
+    image: lpcodeadmin/sib-frontend-publico:latest # <-- Tag :latest para producción
     container_name: sib_cr_frontend_publico_prod
     restart: always
-    #ports:
-      #- "3000:80"
     depends_on:
       - backend
     networks:
@@ -93,6 +75,8 @@ services:
 networks:
   sib-cr-network:
     driver: bridge
+  sib-cr-monorepo_sib-cr-network-dev:
+    external: true # Red creada y gestionada por docker-compose.dev.yml, solo la usamos aquí para conectar el proxy a los servicios de desarrollo
 
 volumes:
   sib_db_data:

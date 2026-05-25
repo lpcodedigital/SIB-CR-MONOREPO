@@ -1,0 +1,85 @@
+services:
+
+  # --- DATABASE DEV --- #
+  db-dev:
+    image: postgres:alpine
+    container_name: sib-cr-database-dev
+    hostname: db-dev
+    restart: always
+    environment:
+      POSTGRES_DB: ${DATASOURCE_DB_NAME}
+      POSTGRES_USER: ${DATASOURCE_USERNAME}
+      POSTGRES_PASSWORD: ${DATASOURCE_PASSWORD}
+    volumes:
+      - sib_db_data_dev:/var/lib/postgresql
+    networks:
+      - sib-cr-network-dev
+
+  # --- BACKEND DEV --- #
+  backend-dev:
+    #build:
+    #  context: ./Backend
+    #  dockerfile: Dockerfile
+    image: lpcodeadmin/sib-backend:dev # <-- Tag :dev para desarrollo
+    container_name: sib-cr-backend-dev
+    restart: always
+    #ports:
+      #- "8081:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-dev:5432/${DATASOURCE_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DATASOURCE_PASSWORD}
+      SPRING_MAIL_HOST: ${MAIL_HOST}
+      SPRING_MAIL_PORT: ${MAIL_PORT}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+    env_file:
+    - .env.dev
+    depends_on:
+      - db-dev
+    networks:
+      - sib-cr-network-dev
+
+  # --- FRONTEND ADMIN REFINE DEV--- #
+  admin-dev:
+    #build:
+    #  context: ./Frontend-Admin
+    #  dockerfile: Dockerfile
+    #  target: prod
+    #  args:
+    #    VITE_API_URL: ${URL_BASE_API_BACKEND:-http://localhost:8081/api/v1}
+    image: lpcodeadmin/sib-frontend-admin:dev # <-- Tag :dev para desarrollo
+    container_name: sib_cr_frontend_admin_dev
+    restart: always
+    #ports:
+      #- "3001:80"
+    depends_on:
+      - backend-dev
+    networks:
+      - sib-cr-network-dev
+
+  # --- FRONTEND PUBLIC VITE DEV--- #
+  publico-dev:
+    #build:
+    #  context: ./Frontend-Public
+    #  dockerfile: Dockerfile
+    #  target: prod
+    image: lpcodeadmin/sib-frontend-publico:dev # <-- Tag :dev para desarrollo
+    container_name: sib_cr_frontend_publico_dev
+    restart: always
+    #ports:
+      #- "3000:80"
+    depends_on:
+      - backend-dev
+    networks:
+      - sib-cr-network-dev
+
+networks:
+  sib-cr-network-dev:
+    name: sib-cr-monorepo_sib-cr-network-dev # Red dedicada y aislada
+    driver: bridge
+
+volumes:
+  sib_db_data_dev:
