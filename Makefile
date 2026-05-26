@@ -86,6 +86,12 @@ prod-build:
 	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --build
 	@echo "$(GREEN)✅ Build y despliegue completados$(RESET)"
 
+# Actualizar el proxy de producción de manera atómica inyectando su entorno para evitar los WARN
+update-proxy-prod:
+	@echo "$(BLUE)🔄 Recreando Proxy de Producción con soporte de redes...$(RESET)"
+	docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --no-deps proxy
+	@echo "$(GREEN)✅ Proxy de producción actualizado sin caídas.$(RESET)"
+
 # ==============================================
 # 🧪 DESPLIEGUE EN ENTORNO DE PRUEBAS (dev)
 # ==============================================
@@ -95,8 +101,9 @@ dev:
 	@echo "$(BLUE)🏗️ Iniciando despliegue en entorno de desarrollo...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d
 	@echo "$(GREEN)✨ ¡Sistema de desarrollo levantado exitosamente!$(RESET)"
-	@echo "$(YELLOW)Admin: $(ADMIN_URL)$(RESET)"
-	@echo "$(YELLOW)Público: $(PUBLIC_URL)$(RESET)"
+	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
+	echo "$(YELLOW)Admin: $$ADMIN_URL$(RESET)" && \
+	echo "$(YELLOW)Público: $$PUBLIC_URL$(RESET)"
 
 # ==============================================
 # 🔄 REINICIAR SERVICIOS
@@ -168,7 +175,7 @@ update-dev-all:
 	@echo "$(BLUE)🚀 Jalando últimas imágenes de DEV desde Docker Hub...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) pull
 	@docker compose -f $(COMPOSE_DEV) up -d
-	@echo "$(GREEN)✅ Entorno de DEV actualizado$(RESET)"
+	@echo "$(GREEN)✅ Imágenes de desarrollo actualizadas en el VPS.$(RESET)"
 
 # Actualizar Backend de DEV en el VPS
 update-dev-backend:
@@ -323,7 +330,7 @@ logs-dev-all:
 	@docker compose -f $(COMPOSE_DEV) logs -f
 
 # ==============================================
-# 🐘 BASE DE DATOS (PostgreSQL)
+# 🐘 BASE DE DATOS PRODUCCION (PostgreSQL)
 # ==============================================
 
 # Entrar a la terminal de PostgreSQL
@@ -373,6 +380,14 @@ clean-temp:
 		docker exec -it sib-cr-database-prod rm /tmp/obras_final.csv
 
 # ==============================================
+# 🐘 BASE DE DATOS DESARROLLO (PostgreSQL)
+# ==============================================
+
+# Terminal interactiva de la BD de DEV
+db-dev-shell: 
+	@docker exec -it $(DB_DEV_CONTAINER) psql -U $(DATASOURCE_USERNAME) -d $(DATASOURCE_DB_NAME)
+
+# ==============================================
 # 🌐 REDES Y DIAGNÓSTICO
 # ==============================================
 
@@ -414,7 +429,7 @@ docker-ip:
 	fi
 
 # ==============================================
-# 🏭 CONSTRUCCIÓN (Solo construir para pruebas locales) (CI/CD Local)
+# 🏭 CONSTRUCCIÓN LOCAL PARA PRODUCCIÓN (Solo construir para pruebas locales no las sube a Docker Hub) (CI/CD Local)
 # ==============================================
 
 build-local: build-backend-local build-admin-local build-public-local
@@ -433,6 +448,36 @@ build-public-local:
 		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
 		--build-arg VITE_GOOGLE_MAPS_API_KEY=$(VITE_GOOGLE_MAPS_API_KEY) \
 		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
+
+# ==============================================
+# 🏭 CONSTRUCCIÓN PARA DESARROLLO (CI/CD Local - DEV. no las sube a Docker Hub)
+# ==============================================
+
+# Construye todas las imágenes de desarrollo localmente
+build-dev-local: build-dev-backend-local build-dev-admin-local build-dev-public-local
+	@echo "$(GREEN)✅ Imágenes de desarrollo construidas localmente. Listas para probar o subir.$(RESET)"
+
+# Build Backend - Desarrollo
+build-dev-backend-local:
+	@echo "$(BLUE)📦 Construyendo Backend para Desarrollo local...$(RESET)"
+	docker build -t $(DOCKER_USER)/sib-backend:$(TAG_DEV) ./Backend
+
+# Build Frontend Admin - Desarrollo (Inyecta la URL de la API de desarrollo)
+build-dev-admin-local:
+	@echo "$(BLUE)📦 Construyendo Frontend Admin para Desarrollo local...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
+	docker build --target prod \
+		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
+		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG_DEV) ./Frontend-Admin
+
+# Build Frontend Público - Desarrollo (Inyecta API de desarrollo y la Key de Maps de Dev)
+build-dev-public-local:
+	@echo "$(BLUE)📦 Construyendo Frontend Público para Desarrollo local...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
+	docker build --target prod \
+		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
+		--build-arg VITE_GOOGLE_MAPS_API_KEY=$$VITE_GOOGLE_MAPS_API_KEY \
+		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_DEV) ./Frontend-Public
 
 
 # ==============================================
@@ -471,7 +516,7 @@ build-public:
 # ==============================================
 
 # Construir y subir todas las imágenes con Tag :dev
-build-dev-and-push: build-backend-dev build-admin-dev build-public-dev
+build-dev-and-push: build-dev-backend build-dev-admin build-dev-public
 	@echo "$(GREEN)🚀 ¡Todas las imágenes con Tag :dev han sido enviadas a Docker Hub!$(RESET)"
 
 # Construir y subir Backend con Tag :dev
@@ -546,94 +591,123 @@ db-dev-tunnel:
 
 help:
 	@echo ""
-	@echo "$(GREEN)==============================================$(RESET)"
-	@echo "$(GREEN)🚀 MAKEFILE MAESTRO - SIB-CR$(RESET)"
-	@echo "$(GREEN)==============================================$(RESET)"
+	@echo "$(GREEN)==================================================================$(RESET)"
+	@echo "$(GREEN)🚀 MAKEFILE MAESTRO INTERNIVEL - SIB-CR (PROD 🚀 & DEV 🧪)$(RESET)"
+	@echo "$(GREEN)==================================================================$(RESET)"
 	@echo ""
 
-	@echo "$(YELLOW)🚀 DESPLIEGUE Y ACTUALIZACIÓN$(RESET)"
-	@echo "  make prod               → Levantar entorno productivo"
-	@echo "  make prod-build         → Rebuild completo y despliegue"
-	@echo "  make update-all         → Actualizar todos los servicios"
-	@echo "  make update-backend     → Actualizar Backend"
-	@echo "  make update-admin       → Actualizar Frontend Admin"
-	@echo "  make update-public      → Actualizar Frontend Público"
+	@echo "$(YELLOW)🚀 DESPLIEGUE Y ACTUALIZACIÓN (PRODUCCIÓN)$(RESET)"
+	@echo "  make prod                 → Levantar entorno productivo completo"
+	@echo "  make prod-build           → Rebuild completo y despliegue de producción"
+	@echo "  make update-proxy-prod    → Recrear Proxy de Prod con soporte de redes (Sin caídas)"
+	@echo "  make update-all           → Descargar imágenes y actualizar todo producción"
+	@echo "  make update-backend       → Actualizar Backend en Producción (Atómico)"
+	@echo "  make update-admin         → Actualizar Frontend Admin en Producción (Atómico)"
+	@echo "  make update-public        → Actualizar Frontend Público en Producción (Atómico)"
 	@echo ""
 
-	@echo "$(YELLOW)🔄 REINICIO DE SERVICIOS$(RESET)"
-	@echo "  make restart            → Reiniciar todos los servicios"
-	@echo "  make restart-backend    → Reiniciar Backend"
-	@echo "  make restart-db         → Reiniciar PostgreSQL"
-	@echo "  make restart-admin      → Reiniciar Frontend Admin"
-	@echo "  make restart-public     → Reiniciar Frontend Público"
+	@echo "$(YELLOW)🧪 DESPLIEGUE Y ACTUALIZACIÓN (DESARROLLO)$(RESET)"
+	@echo "  make dev                  → Levantar entorno de desarrollo completo en el VPS"
+	@echo "  make update-dev-all       → Descargar imágenes y actualizar todo desarrollo"
+	@echo "  make update-dev-backend   → Actualizar Backend en Desarrollo (Atómico)"
+	@echo "  make update-dev-admin     → Actualizar Frontend Admin en Desarrollo (Atómico)"
+	@echo "  make update-dev-public    → Actualizar Frontend Público en Desarrollo (Atómico)"
 	@echo ""
 
-	@echo "$(YELLOW)📊 MONITOREO Y LOGS$(RESET)"
-	@echo "  make status             → Estado de contenedores"
-	@echo "  make stats              → Consumo CPU/RAM"
-	@echo "  make logs-backend       → Logs Backend"
-	@echo "  make logs-db            → Logs PostgreSQL"
-	@echo "  make logs-admin         → Logs Frontend Admin"
-	@echo "  make logs-public        → Logs Frontend Público"
-	@echo "  make logs-all           → Logs de todos los servicios"
+	@echo "$(YELLOW)🔄 REINICIO DE SERVICIOS (PRODUCCIÓN)$(RESET)"
+	@echo "  make restart              → Reiniciar todos los servicios de producción"
+	@echo "  make restart-backend      → Reiniciar Backend producción"
+	@echo "  make restart-db           → Reiniciar PostgreSQL producción"
+	@echo "  make restart-admin        → Reiniciar Frontend Admin producción"
+	@echo "  make restart-public       → Reiniciar Frontend Público producción"
 	@echo ""
 
-	@echo "$(YELLOW)🔍 INSPECCIÓN Y VALIDACIÓN$(RESET)"
-	@echo "  make inspect-backend    → Inspeccionar Backend"
-	@echo "  make inspect-db         → Inspeccionar PostgreSQL"
-	@echo "  make inspect-admin      → Inspeccionar Frontend Admin"
-	@echo "  make inspect-public     → Inspeccionar Frontend Público"
-	@echo "  make config             → Mostrar compose final"
-	@echo "  make validate           → Validar docker-compose"
+	@echo "$(YELLOW)📊 MONITOREO, INSPECCIÓN Y LOGS (PRODUCCIÓN 🚀)$(RESET)"
+	@echo "  make status               → Estado actual de los contenedores de producción"
+	@echo "  make stats                → Consumo de CPU, RAM y Red en tiempo real del VPS"
+	@echo "  make logs-all             → Logs agregados de todo el entorno de producción"
+	@echo "  make logs-backend         → Logs en vivo del Backend de producción"
+	@echo "  make logs-db              → Logs en vivo de la Base de Datos de producción"
+	@echo "  make logs-admin           → Logs en vivo del Frontend Admin de producción"
+	@echo "  make logs-public          → Logs en vivo del Frontend Público de producción"
+	@echo "  make inspect-backend      → Inspección profunda de configuración del Backend"
+	@echo "  make inspect-db           → Inspección profunda de configuración de la Base de Datos"
+	@echo "  make inspect-admin        → Inspeccionar contenedor Admin"
+	@echo "  make inspect-public       → Inspeccionar contenedor Público"
+	@echo "  make config               → Validar y mostrar render final del compose de producción"
+	@echo "  make validate             → Verificar sintaxis del docker-compose de producción"
 	@echo ""
 
-	@echo "$(YELLOW)🐘 BASE DE DATOS$(RESET)"
-	@echo "  make db-shell           → Entrar a PostgreSQL"
-	@echo "  make db-dump1           → Backup PostgreSQL (.sql)"
-	@echo "  make db-dump2           → Backup PostgreSQL alternativo"
-	@echo "  make volume-ls          → Listar volúmenes"
-	@echo "  make volume-inspect     → Inspeccionar volumen DB"
-	@echo "  make import-obras       → Importar obras desde CSV"
-	@echo "  make clean-temp         → Limpiar archivos temporales"
+	@echo "$(YELLOW)📊 LOGS Y MONITOREO (DESARROLLO 🧪)$(RESET)"
+	@echo "  make logs-dev-all         → Logs agregados de todo el entorno de desarrollo"
+	@echo "  make logs-dev-backend     → Logs en vivo del Backend de desarrollo"
+	@echo "  make logs-dev-db          → Logs en vivo de la Base de Datos de desarrollo"
+	@echo "  make logs-dev-admin       → Logs en vivo del Frontend Admin de desarrollo"
+	@echo "  make logs-dev-public      → Logs en vivo del Frontend Público de desarrollo"
 	@echo ""
 
-	@echo "$(YELLOW)🌐 REDES Y DIAGNÓSTICO$(RESET)"
-	@echo "  make networks-ls        → Listar redes Docker"
-	@echo "  make network-inspect    → Inspeccionar red"
-	@echo "  make ping-db            → Backend → PostgreSQL"
-	@echo "  make ping-backend       → Admin → Backend"
-	@echo "  make ping-public        → Público → Backend"
-	@echo "  make docker-gateway     → Obtener Gateway de la red en el VPS"
-	@echo "  make docker-ip          → Obtener IP interna de un contenedor (Ej: make docker-ip NAME=sib-cr-database-prod)"
+	@echo "$(YELLOW)🐘 BASE DE DATOS (MANTENIMIENTO E IMPORTACIÓN)$(RESET)"
+	@echo "  make db-shell             → Terminal interactiva (psql) de la BD de Producción"
+	@echo "  make db-dev-shell         → Terminal interactiva (psql) de la BD de Desarrollo"
+	@echo "  make db-dump1             → Backup rápido de Producción a archivo .sql timestamps"
+	@echo "  make db-dump2             → Backup alternativo abreviado de Producción"
+	@echo "  make volume-ls            → Listar todos los volúmenes de Docker en el host"
+	@echo "  make volume-inspect       → Ver la ruta y metadatos del volumen de producción"
+	@echo "  make import-obras         → Importar y normalizar catálogo CSV a Producción"
+	@echo "  make clean-temp           → Eliminar archivos residuales CSV del contenedor de producción"
 	@echo ""
 
-	@echo "$(YELLOW)🧹 LIMPIEZA Y MANTENIMIENTO$(RESET)"
-	@echo "  make down-all           → Detener entorno"
-	@echo "  make down-volumes       → Eliminar contenedores + volúmenes"
-	@echo "  make clean-images       → Limpiar imágenes huérfanas"
-	@echo "  make prune              → Limpieza segura Docker"
-	@echo "  make network-prune      → Limpiar redes Docker"
-	@echo "  make clean-danger       → RESET TOTAL del sistema"
+	@echo "$(YELLOW)🌐 REDES Y DIAGNÓSTICO DE COMPONENTES$(RESET)"
+	@echo "  make networks-ls          → Listar las redes virtuales del motor de Docker"
+	@echo "  make network-inspect      → Inspeccionar miembros e IPs de una red específica"
+	@echo "  make ping-db              → Diagnóstico: Conectividad interna Backend -> Postgres"
+	@echo "  make ping-backend         → Diagnóstico: Conectividad interna Admin -> Backend"
+	@echo "  make ping-public          → Diagnóstico: Conectividad interna Público -> Backend"
+	@echo "  make docker-gateway       → Obtener la IP de la puerta de enlace de red del VPS"
+	@echo "  make docker-ip            → Obtener IP interna pasándole el nombre (Ej: make docker-ip NAME=...)"
 	@echo ""
 
-	@echo "$(YELLOW)🏭 BUILD Y DOCKER HUB$(RESET)"
-	@echo "  make build-backend      → Build Backend"
-	@echo "  make build-admin        → Build Frontend Admin"
-	@echo "  make build-public       → Build Frontend Público"
-	@echo "  make build-and-push     → Build y Push de todas las imágenes"
+	@echo "$(YELLOW)🧹 LIMPIEZA Y SOPORTE PERIMETRAL (VPS)$(RESET)"
+	@echo "  make down-all             → Detener y remover entorno de producción"
+	@echo "  make down-dev             → Detener y remover entorno de desarrollo"
+	@echo "  make down-volumes         → Detener producción y BORRAR VOLÚMENES FÍSICOS (Peligro)"
+	@echo "  make clean-images         → Remover imágenes Docker huérfanas / sin uso"
+	@echo "  make prune                → Limpieza global del sistema de Docker (Segura)"
+	@echo "  make network-prune        → Eliminar redes virtuales en desuso"
+	@echo "  make clean-danger         → HARD RESET: Borra todo el sistema, cachés y volúmenes (Cuidado)"
 	@echo ""
 
-	@echo "$(YELLOW)🏭 BUILD Y LOCAL$(RESET)"
-	@echo "  make build-local              → Build Backend + Frontend Admin + Frontend Público Localmente"
-	@echo "  make build-backend-local      → Build Backend Localmente"
-	@echo "  make build-admin-local        → Build Frontend Admin Localmente"
-	@echo "  make build-public-local       → Build Frontend Público Localmente"
+	@echo "$(YELLOW)🏭 LA FÁBRICA EN LA NUBE - BUILDS + PUSH A DOCKER HUB (PRODUCCIÓN 🚀)$(RESET)"
+	@echo "  make build-and-push     → Compilar y subir imágenes de PRODUCCIÓN (:latest)"
+	@echo "  make build-backend      → Compilar Backend"
+	@echo "  make build-admin        → Compilar Frontend Admin"
+	@echo "  make build-public       → Compilar Frontend Público"
 	@echo ""
 
-	@echo "$(YELLOW)🌐 SSH CONEXIÓN REMOTA(VPS) $(RESET)"
-	@echo "  make ssh-vps            → Conexión SSH a la terminal del VPS"
-	@echo "  make proxy-tunnel        → Abrir túnel SSH para panel de administración del proxy (Acceso en http://localhost:8080)"
-	@echo "  make db-tunnel           → Abrir túnel SSH para PostgreSQL (Acceso en http://localhost:5433)"
+	@echo "$(YELLOW)🏭 LA FÁBRICA EN LA NUBE - BUILDS + PUSH A DOCKER HUB (DESARROLLO 🧪)$(RESET)"
+	@echo "  make build-dev-and-push  → Compilar y subir imágenes de DESARROLLO (:dev)"
+	@echo "  make build-dev-backend   → Compilar Backend de desarrollo"
+	@echo "  make build-dev-admin     → Compilar Frontend Admin de desarrollo"
+	@echo "  make build-dev-public    → Compilar Frontend Público de desarrollo"
 	@echo ""
 
-	@echo "-----------------------------------------------"
+	@echo "$(YELLOW)🏭 BUILD Y LOCAL (PRODUCCIÓN 🚀)$(RESET)"
+	@echo "  make build-local              → Compilar todas las imágenes para Prod localmente ("Backend + Frontend Admin + Frontend Público Localmente")
+	@echo "  make build-backend-local      → Compilar Backend Localmente"
+	@echo "  make build-admin-local        → Compilar Frontend Admin Localmente"
+	@echo "  make build-public-local       → Compilar Frontend Público Localmente"
+	@echo ""
+
+	@echo "$(YELLOW)🏭 BUILD Y LOCAL (DESARROLLO 🧪)$(RESET)"
+	@echo "  make build-dev-local          → Compilar todas las imágenes para Dev localmente con .env.dev" ("Backend + Frontend Admin + Frontend Público Localmente con variables de desarrollo")
+	@echo "  make build-dev-backend-local  → Compilar Backend Localmente con variables de desarrollo"
+	@echo "  make build-dev-admin-local    → Compilar Frontend Admin Localmente con variables de desarrollo"
+	@echo "  make build-dev-public-local   → Compilar Frontend Público Localmente con variables de desarrollo"
+	@echo ""
+
+	@echo "$(YELLOW)🌐 CONEXIONES REMOTAS Y TÚNELES SEGUROS (SSH)$(RESET)"
+	@echo "  make ssh-vps              → Iniciar consola interactiva remota en el VPS"
+	@echo "  make proxy-tunnel         → Túnel SSH para Nginx Proxy Manager Panel (Acceso: http://localhost:8080)"
+	@echo "  make db-tunnel            → Túnel SSH para la base de datos de PRODUCCIÓN (Mapea a localhost:5433)"
+	@echo "  make db-dev-tunnel        → Túnel SSH para la base de datos de DESARROLLO (Mapea a localhost:5434)"
+	@echo "------------------------------------------------------------------"
