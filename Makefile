@@ -11,7 +11,7 @@ COMPOSE_DEV  := docker-compose.dev.yml
 ENV_PROD     := .env.prod
 ENV_DEV      := .env.dev
 DOCKER_USER  := lpcodeadmin
-TAG          := latest
+TAG_PROD     := prod
 TAG_DEV      := dev
 
 # ==============================================
@@ -73,11 +73,79 @@ ifneq ("$(wildcard $(ENV_DEV))","")
     export $(shell sed 's/=.*//' $(ENV_DEV))
 endif
 
-# ==============================================
-# 🚀 DESPLIEGUE Y ACTUALIZACIÓN EN ENTORNO DE PRODUCCIÓN (prod)
-# ==============================================
+# ============================================================================================
+# 🏭 FABRICA DE COMPILACIÓN (BUILD) A PRODUCCION - TAG: PROD (Para constuir y enviar a docker hub)
+# ============================================================================================
 
-# Levanta todo el sistema en producción
+# Construir y subir todas las imágenes
+build-and-push: build-backend build-admin build-public
+	@echo "$(GREEN)🚀 ¡Todas las imágenes con Tag :prod han sido enviadas a Docker Hub!$(RESET)"
+
+# Construir y subir Backend (PROD)
+build-backend:
+	@echo "$(BLUE)📦 Construyendo y subiendo Backend para PROD...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_PROD) | xargs) && \
+	docker build -t $(DOCKER_USER)/sib-backend:$(TAG_PROD) ./Backend && \
+	docker push $(DOCKER_USER)/sib-backend:$(TAG_PROD)
+
+# Construir y subir Frontend Admin (PROD)
+build-admin:
+	@echo "$(BLUE)📦 Cargando $(ENV_PROD), construyendo y subiendo Frontend Admin para PROD...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_PROD) | xargs) && \
+	docker build --target prod \
+		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
+		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG_PROD) ./Frontend-Admin && \
+	docker push $(DOCKER_USER)/sib-frontend-admin:$(TAG_PROD)
+
+# Construir y subir Frontend Público (PROD)
+build-public:
+	@echo "$(BLUE)📦 Cargando $(ENV_PROD) y construyendo Frontend Público para PROD...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_PROD) | xargs) && \
+	docker build --target prod \
+		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
+		--build-arg VITE_GOOGLE_MAPS_API_KEY=$$VITE_GOOGLE_MAPS_API_KEY \
+		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_PROD) ./Frontend-Public && \
+	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG_PROD)
+
+# ============================================================================================
+# 🏭 FABRICA DE COMPILACIÓN (BUILD) A DESARROLLO - TAG: DEV (Para constuir y enviar a docker hub)
+# ============================================================================================
+
+# Construir y subir todas las imágenes con Tag :dev
+build-dev-and-push: build-dev-backend build-dev-admin build-dev-public
+	@echo "$(GREEN)🚀 ¡Todas las imágenes con Tag :dev han sido enviadas a Docker Hub!$(RESET)"
+
+# Construir y subir Backend (DEV)
+build-dev-backend:
+	@echo "$(BLUE)📦 Construyendo y subiendo Backend para DEV...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
+	docker build -t $(DOCKER_USER)/sib-backend:$(TAG_DEV) ./Backend && \
+	docker push $(DOCKER_USER)/sib-backend:$(TAG_DEV)
+
+# Construir y subir Frontend Admin con Tag :dev
+build-dev-admin:
+	@echo "$(BLUE)📦 Cargando $(ENV_DEV), construyendo y subiendo Frontend Admin para DEV...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
+	docker build --target prod \
+		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
+		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG_DEV) ./Frontend-Admin && \
+	docker push $(DOCKER_USER)/sib-frontend-admin:$(TAG_DEV)
+
+# Construir y subir Frontend Público con Tag :dev
+build-dev-public:
+	@echo "$(BLUE)📦 Cargando $(ENV_DEV), construyendo y subiendo Frontend Público para DEV...$(RESET)"
+	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
+	docker build --target prod \
+		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
+		--build-arg VITE_GOOGLE_MAPS_API_KEY=$$VITE_GOOGLE_MAPS_API_KEY \
+		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_DEV) ./Frontend-Public && \
+	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG_DEV)
+
+# ============================================================================================
+# 🚀 DESPLIEGUE Y ACTUALIZACIÓN EN ENTORNO DE PRODUCCIÓN (prod)
+# ============================================================================================
+
+# Levanta el sistema en producción (si los contenedores ya existen)
 prod:
 	@echo "$(BLUE)🏗️ Iniciando despliegue en entorno de producción...$(RESET)"
 	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d
@@ -85,33 +153,43 @@ prod:
 	@echo "$(YELLOW)Admin: $(ADMIN_URL)$(RESET)"
 	@echo "$(YELLOW)Público: $(PUBLIC_URL)$(RESET)"
 
-# 🏗️ Reconstruir y levantar todo el sistema de producción
-prod-build:
-	@echo "$(BLUE)🏗️ Rebuild completo de producción...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --build
-	@echo "$(GREEN)✅ Build y despliegue completados$(RESET)"
+# 🚀 Descargar últimas imágenes de Docker Hub y actualizar todo el sistema en Producción
+prod-update-all:
+    @echo "$(BLUE)🏗️ Descargando imágenes frescas y recreando entorno de producción...$(RESET)"
+    @docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) pull
+    @docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --force-recreate
+    @echo "$(GREEN)✅ Actualización y despliegue de producción completados$(RESET)"
 
-# Actualizar el proxy de producción de manera atómica inyectando su entorno para evitar los WARN
+# Actualizar el proxy de producción
 update-proxy-prod:
-	@echo "$(BLUE)🔄 Recreando Proxy de Producción con soporte de redes...$(RESET)"
-	docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --no-deps proxy
-	@echo "$(GREEN)✅ Proxy de producción actualizado sin caídas.$(RESET)"
+    @echo "$(BLUE)🔄 Recreando Proxy de Producción...$(RESET)"
+    @docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) pull proxy
+    @docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --force-recreate --no-deps proxy
+    @echo "$(GREEN)✅ Proxy de producción actualizado sin caídas.$(RESET)"
 
-# ==============================================
+# ============================================================================================
 # 🧪 DESPLIEGUE EN ENTORNO DE PRUEBAS (dev)
-# ==============================================
-
-# Levanta todo el sistema en desarrollo en el VPS
+# ============================================================================================
+# Levanta el sistema en desarrollo (si los contenedores ya existen)
 dev:
 	@echo "$(BLUE)🏗️ Iniciando despliegue en entorno de desarrollo...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d
-	@echo "$(GREEN)✨ ¡Sistema de desarrollo levantado exitosamente!$(RESET)"
-	@echo "$(YELLOW)Admin: $(ADMIN_URL)$(RESET)"
-	@echo "$(YELLOW)Público: $(PUBLIC_URL)$(RESET)"
+	@echo "$(GREEN)✨ ¡Sistema levantado exitosamente!$(RESET)"
+	@echo "$(YELLOW)Admin: $(ADMIN_DEV_URL)$(RESET)"
+	@echo "$(YELLOW)Público: $(PUBLIC_DEV_URL)$(RESET)"
 
-# ==============================================
-# 🔄 REINICIAR SERVICIOS
-# ==============================================
+# Levanta todo el sistema en desarrollo en el VPS
+dev-update-all:
+    @echo "$(BLUE)🏗️ Descargando imágenes y desplegando entorno de desarrollo...$(RESET)"
+    @docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) pull
+    @docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --force-recreate
+    @echo "$(GREEN)✨ ¡Sistema de desarrollo levantado exitosamente!$(RESET)"
+    @echo "$(YELLOW)Admin Dev: $(ADMIN_DEV_URL)$(RESET)"
+    @echo "$(YELLOW)Público Dev: $(PUBLIC_DEV_URL)$(RESET)"
+
+# ============================================================================================
+# 🔄 REINICIAR SERVICIOS DE PRODUCCIÓN (prod)
+# ============================================================================================
 
 # Reinicia todos los servicios
 restart:
@@ -138,68 +216,103 @@ restart-public:
 	@echo "$(BLUE)🔄 Reiniciando Frontend Público...$(RESET)"
 	@docker compose -f $(COMPOSE_PROD) restart $(PUBLIC_SERVICE)
 
-# ==============================================
+# ============================================================================================
+# 🔄 REINICIAR SERVICIOS DE DESARROLLO (dev)
+# ============================================================================================
+
+# Reinicia todos los servicios
+restart-dev:
+	@echo "$(BLUE)🔄 Reiniciando servicios...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) restart
+
+# Reinicia backend
+restart-dev-backend:
+	@echo "$(BLUE)🔄 Reiniciando Backend...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) restart $(BACKEND_DEV_SERVICE)
+
+# Reiniciar base de datos
+restart-dev-db:
+	@echo "$(BLUE)🔄 Reiniciando Base de Datos...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) restart $(DB_DEV_SERVICE)
+
+# Reiniciar frontend admin
+restart-dev-admin:
+	@echo "$(BLUE)🔄 Reiniciando Frontend Admin...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) restart $(ADMIN_DEV_SERVICE)
+
+# Reiniciar frontend publico
+restart-dev-public:
+	@echo "$(BLUE)🔄 Reiniciando Frontend Público...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) restart $(PUBLIC_DEV_SERVICE)
+
+# ============================================================================================
 # 🔄 ACTUALIZAR SERVICIOS ATÓMICAS EN PROD 🚀 EN EL VPS (Sin caída de otros servicios)
-# ==============================================
+# ============================================================================================
 
-# Actualizar todos los servicios
+# Actualizar todos los servicios de producción en el VPS
 update-all:
-	@echo "$(BLUE)🚀 Actualizando todos los servicios...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) pull
-	@docker compose -f $(COMPOSE_PROD) up -d
-	@echo "$(GREEN)✅ Todos los servicios actualizados$(RESET)"
+	@echo "$(BLUE)🚀 Actualizando todos los servicios en Producción...$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) pull
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --force-recreate
+	@echo "$(GREEN)✅ Todas las imágenes de producción actualizadas y recreadas con éxito en el VPS.$(RESET)"
 
-# Actualizar Backend
+# Actualizar Backend de Producción en el VPS
 update-backend:
 	@echo "$(BLUE)🚀 Actualizando Backend...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) pull $(BACKEND_SERVICE)
-	@docker compose -f $(COMPOSE_PROD) up -d --no-deps $(BACKEND_SERVICE)
-	@echo "$(GREEN)✅ Backend actualizado$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) pull $(BACKEND_SERVICE)
+	@echo "$(BLUE)🔄 Recreando contenedor con variables de producción...$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --force-recreate --no-deps $(BACKEND_SERVICE)
+	@echo "$(GREEN)✅ Backend PROD  🚀 actualizado$(RESET)"
 
-# Actualizar Frontend Admin
+# Actualizar Frontend Admin de Producción en el VPS
 update-admin:
 	@echo "$(BLUE)🚀 Actualizando Frontend Admin...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) pull $(ADMIN_SERVICE)
-	@docker compose -f $(COMPOSE_PROD) up -d --no-deps $(ADMIN_SERVICE)
-	@echo "$(GREEN)✅ Frontend Admin actualizado$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) pull $(ADMIN_SERVICE)
+	@echo "$(BLUE)🔄 Recreando contenedor del Admin...$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --force-recreate --no-deps $(ADMIN_SERVICE)
+	@echo "$(GREEN)✅ Frontend Admin PROD 🚀 actualizado$(RESET)"
 
-# Actualizar Frontend Público
+# Actualizar Frontend Público de Producción en el VPS
 update-public:
 	@echo "$(BLUE)🚀 Actualizando Frontend Público...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) pull $(PUBLIC_SERVICE)
-	@docker compose -f $(COMPOSE_PROD) up -d --no-deps $(PUBLIC_SERVICE)
-	@echo "$(GREEN)✅ Frontend Público actualizado$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) pull $(PUBLIC_SERVICE)
+	@echo "$(BLUE)🔄 Recreando contenedor del Portal Público...$(RESET)"
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) up -d --force-recreate --no-deps $(PUBLIC_SERVICE)
+	@echo "$(GREEN)✅ Frontend Público PROD 🚀 actualizado$(RESET)"
 
-# ==============================================
+# ============================================================================================
 # 🔄 ACTUALIZAR SERVICIOS ATÓMICAS EN DESARROLLO (dev) 🧪 EN EL VPS (Sin caída de otros servicios)
-# ==============================================
+# ============================================================================================
 
-# Actualizar y refrescar todos los servicios de DEV en el VPS
+# Actualizar todos los servicios de DEV en el VPS
 update-dev-all:
-	@echo "$(BLUE)🚀 Jalando últimas imágenes de DEV desde Docker Hub...$(RESET)"
+	@echo "$(BLUE)🚀 Actualizando a las últimas imágenes de DEV desde Docker Hub...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) pull
-	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d
-	@echo "$(GREEN)✅ Imágenes de desarrollo actualizadas en el VPS.$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --force-recreate
+	@echo "$(GREEN)✅ Todas las imágenes de desarrollo actualizadas y recreadas con éxito en el VPS.$(RESET)"
 
 # Actualizar Backend de DEV en el VPS
 update-dev-backend:
 	@echo "$(BLUE)🚀 Actualizando Backend...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) pull $(BACKEND_DEV_SERVICE)
-	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --no-deps $(BACKEND_DEV_SERVICE)
+	@echo "$(BLUE)🔄 Recreando contenedor con variables de desarrollo...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --force-recreate --no-deps $(BACKEND_DEV_SERVICE)
 	@echo "$(GREEN)✅ Backend DEV 🧪 actualizado$(RESET)"
 
 # Actualizar Frontend Admin de DEV en el VPS
 update-dev-admin:
 	@echo "$(BLUE)🚀 Actualizando Frontend Admin...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) pull $(ADMIN_DEV_SERVICE)
-	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --no-deps $(ADMIN_DEV_SERVICE)
+	@echo "$(BLUE)🔄 Recreando contenedor del Admin...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --force-recreate --no-deps $(ADMIN_DEV_SERVICE)
 	@echo "$(GREEN)✅ Frontend Admin DEV 🧪 actualizado$(RESET)"
 
 # Actualizar Frontend Público de DEV en el VPS
 update-dev-public:
 	@echo "$(BLUE)🚀 Actualizando Frontend Público...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) pull $(PUBLIC_DEV_SERVICE)
-	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --no-deps $(PUBLIC_DEV_SERVICE)
+	@echo "$(BLUE)🔄 Recreando contenedor del Portal Público...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) up -d --force-recreate --no-deps $(PUBLIC_DEV_SERVICE)
 	@echo "$(GREEN)✅ Frontend Público DEV 🧪 actualizado$(RESET)"
 
 # ==============================================
@@ -214,7 +327,7 @@ down-all:
 ## Detiene y elimina volúmenes (¡BORRA DATOS!)
 down-volumes: 
 	@echo "$(RED)⚠️ Eliminando contenedores y volúmenes...$(RESET)"
-	@docker compose -f $(COMPOSE_PROD) down -v
+	@docker compose -f $(COMPOSE_PROD) --env-file $(ENV_PROD) down -v
 
 ## Limpieza segura de imágenes huérfanas
 clean-images: 
@@ -251,6 +364,11 @@ clean-danger:
 down-dev:
 	@echo "$(RED)🗑️ Deteniendo contenedores de desarrollo...$(RESET)"
 	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) down
+
+## Detiene y elimina volúmenes (¡BORRA DATOS!)
+down-dev-volumes: 
+	@echo "$(RED)⚠️ Eliminando contenedores y volúmenes...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) --env-file $(ENV_DEV) down -v
 
 # ==============================================
 # 📊 MONITOREO Y LOGS DE PRODUCCION (prod) 🚀 EN EL VPS
@@ -332,6 +450,31 @@ logs-dev-public:
 ## Logs de todos los servicios
 logs-dev-all: 
 	@docker compose -f $(COMPOSE_DEV) logs -f
+
+## Inspeccionar contenedor de Backend
+inspect-dev-backend:
+	@docker inspect $(BACKEND_DEV_CONTAINER)
+
+## Inspeccionar contenedor de Base de Datos
+inspect-dev-db:
+	@docker inspect $(DB_DEV_CONTAINER)
+
+# Inspeccionar contenedor de Frontend Admin
+inspect-dev-admin:
+	@docker inspect $(ADMIN_DEV_CONTAINER)
+
+# Inspeccionar contenedor de Frontend Público
+inspect-dev-public:
+	@docker inspect $(PUBLIC_DEV_CONTAINER)
+
+# Ver configuración de los servicios
+config-dev:
+	@docker compose -f $(COMPOSE_DEV) config
+
+# Validar docker-compose
+validate-dev:
+	@echo "$(BLUE)🔎 Validando docker-compose...$(RESET)"
+	@docker compose -f $(COMPOSE_DEV) config > /dev/null && echo "$(GREEN)✅ docker-compose válido$(RESET)"
 
 # ==============================================
 # 🐘 BASE DE DATOS PRODUCCION (PostgreSQL)
@@ -440,21 +583,21 @@ build-local: build-backend-local build-admin-local build-public-local
 	@echo "$(GREEN)✅ Imágenes construidas localmente. Listas para 'make prod'$(RESET)"
 
 build-backend-local:
-	docker build -t $(DOCKER_USER)/sib-backend:$(TAG) ./Backend
+	docker build -t $(DOCKER_USER)/sib-backend:$(TAG_PROD) ./Backend
 
 build-admin-local:
 	docker build --target prod \
 		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
-		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG) ./Frontend-Admin
+		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG_PROD) ./Frontend-Admin
 
 build-public-local:
 	docker build --target prod \
 		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
 		--build-arg VITE_GOOGLE_MAPS_API_KEY=$(VITE_GOOGLE_MAPS_API_KEY) \
-		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public
+		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_PROD) ./Frontend-Public
 
 # ==============================================
-# 🏭 CONSTRUCCIÓN PARA DESARROLLO (CI/CD Local - DEV. no las sube a Docker Hub)
+# 🏭 CONSTRUCCIÓN LOCAL PARA DESARROLLO (Solo construir para pruebas locales no las sube a Docker Hub) (CI/CD Local)
 # ==============================================
 
 # Construye todas las imágenes de desarrollo localmente
@@ -482,73 +625,6 @@ build-dev-public-local:
 		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
 		--build-arg VITE_GOOGLE_MAPS_API_KEY=$$VITE_GOOGLE_MAPS_API_KEY \
 		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_DEV) ./Frontend-Public
-
-
-# ==============================================
-# 🏭 FABRICA DE COMPILACIÓN A PRODUCCION - TAG: latest (Para constuir y enviar a docker hub)
-# ==============================================
-
-# Construir y subir todas las imágenes
-build-and-push: build-backend build-admin build-public
-	@echo "$(GREEN)🚀 ¡Todas las imágenes con Tag :latest han sido enviadas a Docker Hub!$(RESET)"
-
-# Construir y subir Backend
-build-backend:
-	@echo "$(BLUE)📦 Construyendo Backend...$(RESET)"
-	docker build -t $(DOCKER_USER)/sib-backend:$(TAG) ./Backend && \
-	docker push $(DOCKER_USER)/sib-backend:$(TAG)
-
-# Construir y subir Frontend Admin
-build-admin:
-	@echo "$(BLUE)📦 Construyendo Frontend Admin...$(RESET)"
-	docker build --target prod \
-		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
-		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG) ./Frontend-Admin && \
-	docker push $(DOCKER_USER)/sib-frontend-admin:$(TAG)
-
-# Construir y subir Frontend Público
-build-public:
-	@echo "$(BLUE)📦 Construyendo Frontend Público con API: $(URL_BASE_API_BACKEND)...$(RESET)"
-	docker build --target prod \
-		--build-arg VITE_API_URL=$(URL_BASE_API_BACKEND) \
-		--build-arg VITE_GOOGLE_MAPS_API_KEY=$(VITE_GOOGLE_MAPS_API_KEY) \
-		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG) ./Frontend-Public && \
-	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG)
-
-# ==============================================
-# 🏭 FABRICA DE COMPILACIÓN A DESARROLLO - TAG: dev (Para constuir y enviar a docker hub)
-# ==============================================
-
-# Construir y subir todas las imágenes con Tag :dev
-build-dev-and-push: build-dev-backend build-dev-admin build-dev-public
-	@echo "$(GREEN)🚀 ¡Todas las imágenes con Tag :dev han sido enviadas a Docker Hub!$(RESET)"
-
-# Construir y subir Backend con Tag :dev
-build-dev-backend:
-	@echo "$(BLUE)📦 Construyendo y subiendo Backend para DEV...$(RESET)"
-	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
-	docker build -t $(DOCKER_USER)/sib-backend:$(TAG_DEV) ./Backend && \
-	docker push $(DOCKER_USER)/sib-backend:$(TAG_DEV)
-
-# Construir y subir Frontend Admin con Tag :dev
-build-dev-admin:
-	@echo "$(BLUE)📦 Construyendo Frontend Admin para DEV...$(RESET)"
-	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
-	docker build --target prod \
-		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
-		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG_DEV) ./Frontend-Admin && \
-	docker push $(DOCKER_USER)/sib-frontend-admin:$(TAG_DEV)
-
-# Construir y subir Frontend Público con Tag :dev
-build-dev-public:
-	@echo "$(BLUE)📦 Construyendo Frontend Público para DEV...$(RESET)"
-	@export $$(grep -v '^#' $(ENV_DEV) | xargs) && \
-	docker build --target prod \
-		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
-		--build-arg VITE_GOOGLE_MAPS_API_KEY=$$VITE_GOOGLE_MAPS_API_KEY \
-		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_DEV) ./Frontend-Public && \
-	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG_DEV)
-
 
 # ==============================================
 # 🖥 SSH CONEXIÓN REMOTA (VPS)
@@ -683,7 +759,7 @@ help:
 	@echo ""
 
 	@echo "$(YELLOW)🏭 LA FÁBRICA EN LA NUBE - BUILDS + PUSH A DOCKER HUB (PRODUCCIÓN 🚀)$(RESET)"
-	@echo "  make build-and-push     → Compilar y subir imágenes de PRODUCCIÓN (:latest)"
+	@echo "  make build-and-push     → Compilar y subir imágenes de PRODUCCIÓN (:prod)"
 	@echo "  make build-backend      → Compilar Backend"
 	@echo "  make build-admin        → Compilar Frontend Admin"
 	@echo "  make build-public       → Compilar Frontend Público"
