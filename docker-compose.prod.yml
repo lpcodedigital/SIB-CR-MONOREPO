@@ -1,7 +1,7 @@
 services:
   # --- REVERSE PROXY (Nginx Proxy Manager) ---
   proxy:
-    image: 'jc21/nginx-proxy-manager:latest'
+    image: 'jc21/nginx-proxy-manager:prod' # <-- Tag :prod para producción
     container_name: sib-cr-proxy-prod
     restart: always
     ports:
@@ -32,7 +32,7 @@ services:
 
   # --- BACKEND --- #
   backend:
-    image: lpcodeadmin/sib-backend:latest # <-- Tag :latest para producción
+    image: lpcodeadmin/sib-backend:prod # <-- Tag :prod para producción
     container_name: sib-cr-backend-prod
     restart: always
     environment:
@@ -54,7 +54,7 @@ services:
 
   # --- FRONTEND ADMIN REFINE--- #
   admin:
-    image: lpcodeadmin/sib-frontend-admin:latest # <-- Tag :latest para producción
+    image: lpcodeadmin/sib-frontend-admin:prod # <-- Tag :prod para producción
     container_name: sib_cr_frontend_admin_prod
     restart: always
     depends_on:
@@ -64,7 +64,7 @@ services:
 
   # --- FRONTEND PUBLIC VITE--- #
   publico:
-    image: lpcodeadmin/sib-frontend-publico:latest # <-- Tag :latest para producción
+    image: lpcodeadmin/sib-frontend-publico:prod # <-- Tag :prod para producción
     container_name: sib_cr_frontend_publico_prod
     restart: always
     depends_on:

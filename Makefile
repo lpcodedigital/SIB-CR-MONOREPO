@@ -63,15 +63,15 @@ RESET   := \033[0m
 # Incluimos las variables del .env para que estén disponibles en los comandos
 # ==============================================
 
-ifneq ("$(wildcard $(ENV_PROD))","")
-    include $(ENV_PROD)
-    export $(shell sed 's/=.*//' $(ENV_PROD))
-endif
+#ifneq ("$(wildcard $(ENV_PROD))","")
+#    include $(ENV_PROD)
+#    export $(shell sed 's/=.*//' $(ENV_PROD))
+#endif
 
-ifneq ("$(wildcard $(ENV_DEV))","")
-    include $(ENV_DEV)
-    export $(shell sed 's/=.*//' $(ENV_DEV))
-endif
+#ifneq ("$(wildcard $(ENV_DEV))","")
+#    include $(ENV_DEV)
+#    export $(shell sed 's/=.*//' $(ENV_DEV))
+#endif
 
 # ============================================================================================
 # 🏭 FABRICA DE COMPILACIÓN (BUILD) A PRODUCCION - TAG: PROD (Para constuir y enviar a docker hub)
@@ -85,14 +85,14 @@ build-and-push: build-backend build-admin build-public
 build-backend:
 	@echo "$(BLUE)📦 Construyendo y subiendo Backend para PROD...$(RESET)"
 	@export $$(grep -v '^#' $(ENV_PROD) | xargs) && \
-	docker build -t $(DOCKER_USER)/sib-backend:$(TAG_PROD) ./Backend && \
+	docker build --no-cache -t $(DOCKER_USER)/sib-backend:$(TAG_PROD) ./Backend && \
 	docker push $(DOCKER_USER)/sib-backend:$(TAG_PROD)
 
 # Construir y subir Frontend Admin (PROD)
 build-admin:
 	@echo "$(BLUE)📦 Cargando $(ENV_PROD), construyendo y subiendo Frontend Admin para PROD...$(RESET)"
 	@export $$(grep -v '^#' $(ENV_PROD) | xargs) && \
-	docker build --target prod \
+	docker build --no-cache --target prod \
 		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
 		-t $(DOCKER_USER)/sib-frontend-admin:$(TAG_PROD) ./Frontend-Admin && \
 	docker push $(DOCKER_USER)/sib-frontend-admin:$(TAG_PROD)
@@ -101,11 +101,12 @@ build-admin:
 build-public:
 	@echo "$(BLUE)📦 Cargando $(ENV_PROD) y construyendo Frontend Público para PROD...$(RESET)"
 	@export $$(grep -v '^#' $(ENV_PROD) | xargs) && \
-	docker build --target prod \
+	docker build --no-cache --target prod \
 		--build-arg VITE_API_URL=$$URL_BASE_API_BACKEND \
 		--build-arg VITE_GOOGLE_MAPS_API_KEY=$$VITE_GOOGLE_MAPS_API_KEY \
 		-t $(DOCKER_USER)/sib-frontend-publico:$(TAG_PROD) ./Frontend-Public && \
 	docker push $(DOCKER_USER)/sib-frontend-publico:$(TAG_PROD)
+	# 1. Compilación limpia sin caché
 
 # ============================================================================================
 # 🏭 FABRICA DE COMPILACIÓN (BUILD) A DESARROLLO - TAG: DEV (Para constuir y enviar a docker hub)
